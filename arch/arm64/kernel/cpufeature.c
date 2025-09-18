@@ -2032,10 +2032,10 @@ static void cpu_enable_pan(const struct arm64_cpu_capabilities *__unused)
 	 * We modify PSTATE. This won't work from irq context as the PSTATE
 	 * is discarded once we return from the exception.
 	 */
-	WARN_ON_ONCE(in_interrupt());
-
-	sysreg_clear_set(sctlr_el1, SCTLR_EL1_SPAN, 0);
-	set_pstate_pan(1);
+	pr_alert("!!! %s %s %d, disable fucking pan !!!!\n", __FILE__, __func__, __LINE__);
+	//WARN_ON_ONCE(in_interrupt());
+	// sysreg_clear_set(sctlr_el1, SCTLR_EL1_SPAN, 0);
+	// set_pstate_pan(1);
 }
 #endif /* CONFIG_ARM64_PAN */
 

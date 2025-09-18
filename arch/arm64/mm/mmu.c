@@ -4,6 +4,7 @@
  *
  * Copyright (C) 1995-2005 Russell King
  * Copyright (C) 2012 ARM Ltd.
+ * Copyright (C) 2025 SuperHacker UEFI
  */
 
 #include <linux/cache.h>
@@ -176,7 +177,7 @@ static void init_pte(pmd_t *pmdp, unsigned long addr, unsigned long end,
 
 	ptep = pte_set_fixmap_offset(pmdp, addr);
 	do {
-		pte_t old_pte = READ_ONCE(*ptep);
+		// pte_t old_pte = READ_ONCE(*ptep);
 
 		set_pte(ptep, pfn_pte(__phys_to_pfn(phys), prot));
 
@@ -184,8 +185,8 @@ static void init_pte(pmd_t *pmdp, unsigned long addr, unsigned long end,
 		 * After the PTE entry has been populated once, we
 		 * only allow updates to the permission attributes.
 		 */
-		BUG_ON(!pgattr_change_is_safe(pte_val(old_pte),
-					      READ_ONCE(pte_val(*ptep))));
+		// BUG_ON(!pgattr_change_is_safe(pte_val(old_pte),
+		// 			      READ_ONCE(pte_val(*ptep))));
 
 		phys += PAGE_SIZE;
 	} while (ptep++, addr += PAGE_SIZE, addr != end);
@@ -566,8 +567,6 @@ static inline void arm64_kfence_map_pool(phys_addr_t kfence_pool, pgd_t *pgdp) {
 static void __init map_mem(pgd_t *pgdp)
 {
 	static const u64 direct_map_end = _PAGE_END(VA_BITS_MIN);
-	phys_addr_t kernel_start = __pa_symbol(_stext);
-	phys_addr_t kernel_end = __pa_symbol(__init_begin);
 	phys_addr_t start, end;
 	phys_addr_t early_kfence_pool;
 	int flags = NO_EXEC_MAPPINGS;
@@ -586,15 +585,7 @@ static void __init map_mem(pgd_t *pgdp)
 
 	if (can_set_direct_map())
 		flags |= NO_BLOCK_MAPPINGS | NO_CONT_MAPPINGS;
-
-	/*
-	 * Take care not to create a writable alias for the
-	 * read-only text and rodata sections of the kernel image.
-	 * So temporarily mark them as NOMAP to skip mappings in
-	 * the following for-loop
-	 */
-	memblock_mark_nomap(kernel_start, kernel_end - kernel_start);
-
+	
 	/* map all the memory banks */
 	for_each_mem_range(i, &start, &end) {
 		if (start >= end)
@@ -604,28 +595,24 @@ static void __init map_mem(pgd_t *pgdp)
 		 * if MTE is present. Otherwise, it has the same attributes as
 		 * PAGE_KERNEL.
 		 */
-		__map_memblock(pgdp, start, end, pgprot_tagged(PAGE_KERNEL),
-			       flags);
+		pr_alert("!!! %s %s %d, Mapping Phy-Addr 0x%llx - 0x%llx as RWX !!!\n", __FILE__, __func__, __LINE__, start, end);
+		__map_memblock(pgdp, start, end, __pgprot(PROT_NORMAL | PTE_USER), flags);
 	}
 
-	/*
-	 * Map the linear alias of the [_stext, __init_begin) interval
-	 * as non-executable now, and remove the write permission in
-	 * mark_linear_text_alias_ro() below (which will be called after
-	 * alternative patching has completed). This makes the contents
-	 * of the region accessible to subsystems such as hibernate,
-	 * but protects it from inadvertent modification or execution.
-	 * Note that contiguous mappings cannot be remapped in this way,
-	 * so we should avoid them here.
-	 */
-	__map_memblock(pgdp, kernel_start, kernel_end,
-		       PAGE_KERNEL, NO_CONT_MAPPINGS);
-	memblock_clear_nomap(kernel_start, kernel_end - kernel_start);
+	if (PHYS_OFFSET)
+	{
+		pr_alert("!!! %s %s %d, Mapping MMIO 0 - 0x%llx as RWX !!!\n", __FILE__, __func__, __LINE__, PHYS_OFFSET);
+		__map_memblock(pgdp, 0, PHYS_OFFSET, __pgprot(PROT_NORMAL | PTE_USER), flags);
+	}
+	
 	arm64_kfence_map_pool(early_kfence_pool, pgdp);
 }
 
 void mark_rodata_ro(void)
 {
+	pr_alert("!!! %s %s %d, Just use RWX !!!\n", __FILE__, __func__, __LINE__);
+	return;
+
 	unsigned long section_size;
 
 	/*
@@ -664,17 +651,12 @@ static void __init map_kernel_segment(pgd_t *pgdp, void *va_start, void *va_end,
 	vm_area_add_early(vma);
 }
 
-static pgprot_t kernel_exec_prot(void)
-{
-	return rodata_enabled ? PAGE_KERNEL_ROX : PAGE_KERNEL_EXEC;
-}
-
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
 static int __init map_entry_trampoline(void)
 {
 	int i;
 
-	pgprot_t prot = kernel_exec_prot();
+	pgprot_t prot = PAGE_KERNEL_RWX;
 	phys_addr_t pa_start = __pa_symbol(__entry_tramp_text_start);
 
 	/* The trampoline is always mapped and can therefore be global */
@@ -701,57 +683,25 @@ core_initcall(map_entry_trampoline);
 #endif
 
 /*
- * Open coded check for BTI, only for use to determine configuration
- * for early mappings for before the cpufeature code has run.
- */
-static bool arm64_early_this_cpu_has_bti(void)
-{
-	u64 pfr1;
-
-	if (!IS_ENABLED(CONFIG_ARM64_BTI_KERNEL))
-		return false;
-
-	pfr1 = __read_sysreg_by_encoding(SYS_ID_AA64PFR1_EL1);
-	return cpuid_feature_extract_unsigned_field(pfr1,
-						    ID_AA64PFR1_EL1_BT_SHIFT);
-}
-
-/*
  * Create fine-grained mappings for the kernel.
  */
 static void __init map_kernel(pgd_t *pgdp)
 {
 	static struct vm_struct vmlinux_text, vmlinux_rodata, vmlinux_inittext,
 				vmlinux_initdata, vmlinux_data;
-
-	/*
-	 * External debuggers may need to write directly to the text
-	 * mapping to install SW breakpoints. Allow this (only) when
-	 * explicitly requested with rodata=off.
-	 */
-	pgprot_t text_prot = kernel_exec_prot();
-
-	/*
-	 * If we have a CPU that supports BTI and a kernel built for
-	 * BTI then mark the kernel executable text as guarded pages
-	 * now so we don't have to rewrite the page tables later.
-	 */
-	if (arm64_early_this_cpu_has_bti())
-		text_prot = __pgprot_modify(text_prot, PTE_GP, PTE_GP);
-
 	/*
 	 * Only rodata will be remapped with different permissions later on,
 	 * all other segments are allowed to use contiguous mappings.
 	 */
-	map_kernel_segment(pgdp, _stext, _etext, text_prot, &vmlinux_text, 0,
+	map_kernel_segment(pgdp, _stext, _etext, PAGE_KERNEL_RWX, &vmlinux_text, 0,
 			   VM_NO_GUARD);
-	map_kernel_segment(pgdp, __start_rodata, __inittext_begin, PAGE_KERNEL,
+	map_kernel_segment(pgdp, __start_rodata, __inittext_begin, PAGE_KERNEL_RWX,
 			   &vmlinux_rodata, NO_CONT_MAPPINGS, VM_NO_GUARD);
-	map_kernel_segment(pgdp, __inittext_begin, __inittext_end, text_prot,
+	map_kernel_segment(pgdp, __inittext_begin, __inittext_end, PAGE_KERNEL_RWX,
 			   &vmlinux_inittext, 0, VM_NO_GUARD);
-	map_kernel_segment(pgdp, __initdata_begin, __initdata_end, PAGE_KERNEL,
+	map_kernel_segment(pgdp, __initdata_begin, __initdata_end, PAGE_KERNEL_RWX,
 			   &vmlinux_initdata, 0, VM_NO_GUARD);
-	map_kernel_segment(pgdp, _data, _end, PAGE_KERNEL, &vmlinux_data, 0, 0);
+	map_kernel_segment(pgdp, _data, _end, PAGE_KERNEL_RWX, &vmlinux_data, 0, 0);
 
 	fixmap_copy(pgdp);
 	kasan_copy_shadow(pgdp);
@@ -771,7 +721,7 @@ static void __init create_idmap(void)
 			__pgd(pgd_phys | P4D_TYPE_TABLE));
 		pgd = __va(pgd_phys);
 	}
-	__create_pgd_mapping(pgd, start, start, size, PAGE_KERNEL_ROX,
+	__create_pgd_mapping(pgd, start, start, size, PAGE_KERNEL_RWX,
 			     early_pgtable_alloc, 0);
 
 	if (IS_ENABLED(CONFIG_UNMAP_KERNEL_AT_EL0)) {
@@ -782,7 +732,7 @@ static void __init create_idmap(void)
 		 * The KPTI G-to-nG conversion code needs a read-write mapping
 		 * of its synchronization flag in the ID map.
 		 */
-		__create_pgd_mapping(pgd, pa, pa, sizeof(u32), PAGE_KERNEL,
+		__create_pgd_mapping(pgd, pa, pa, sizeof(u32), PAGE_KERNEL_RWX,
 				     early_pgtable_alloc, 0);
 	}
 }
@@ -793,15 +743,15 @@ void __init paging_init(void)
 	extern pgd_t init_idmap_pg_dir[];
 
 	idmap_t0sz = 63UL - __fls(__pa_symbol(_end) | GENMASK(VA_BITS_MIN - 1, 0));
-
+	pr_alert("!!! %s %s %d, kimage_voffset=0x%llx _stext is on phy-addr 0x%llx !!!\n", __FILE__, __func__, __LINE__, kimage_voffset, __pa_symbol(_stext));
 	map_kernel(pgdp);
 	map_mem(pgdp);
 
 	pgd_clear_fixmap();
-
+	//pr_alert("!!! %s %s %d!!!\n", __FILE__, __func__, __LINE__);
 	cpu_replace_ttbr1(lm_alias(swapper_pg_dir), init_idmap_pg_dir);
 	init_mm.pgd = swapper_pg_dir;
-
+	pr_alert("!!! %s %s %d!!!\n", __FILE__, __func__, __LINE__);
 	memblock_phys_free(__pa_symbol(init_pg_dir),
 			   __pa_symbol(init_pg_end) - __pa_symbol(init_pg_dir));
 
