@@ -1197,7 +1197,7 @@ static inline bool __need_bw_check(struct rq *rq, struct task_struct *p)
 	if (rq->nr_running != 1)
 		return false;
 
-	if (p->sched_class != &fair_sched_class)
+	if (p->sched_class != &easy_sched_class)
 		return false;
 
 	if (!task_on_rq_queued(p))
@@ -1320,7 +1320,7 @@ static void set_load_weight(struct task_struct *p, bool update_load)
 	 * SCHED_OTHER tasks have to update their load when changing their
 	 * weight
 	 */
-	if (update_load && p->sched_class == &fair_sched_class)
+	if (update_load && p->sched_class == &easy_sched_class)
 		reweight_task(p, &lw);
 	else
 		p->se.load = lw;
@@ -2218,7 +2218,7 @@ static inline void check_class_changed(struct rq *rq, struct task_struct *p,
 
 void wakeup_preempt(struct rq *rq, struct task_struct *p, int flags)
 {
-	if (p->sched_class == rq->curr->sched_class)
+	if ((p->sched_class == rq->curr->sched_class) && p->sched_class->wakeup_preempt)
 		rq->curr->sched_class->wakeup_preempt(rq, p, flags);
 	else if (sched_class_above(p->sched_class, rq->curr->sched_class))
 		resched_curr(rq);
@@ -3356,7 +3356,7 @@ void set_task_cpu(struct task_struct *p, unsigned int new_cpu)
 	 * time relying on p->on_rq.
 	 */
 	WARN_ON_ONCE(state == TASK_RUNNING &&
-		     p->sched_class == &fair_sched_class &&
+		     p->sched_class == &easy_sched_class &&
 		     (p->on_rq && !task_on_rq_migrating(p)));
 
 #ifdef CONFIG_LOCKDEP
@@ -4768,7 +4768,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	else if (rt_prio(p->prio))
 		p->sched_class = &rt_sched_class;
 	else
-		p->sched_class = &fair_sched_class;
+		p->sched_class = &easy_sched_class;
 
 	init_entity_runnable_average(&p->se);
 
@@ -5999,10 +5999,10 @@ __pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * higher scheduling class, because otherwise those lose the
 	 * opportunity to pull in more work from other CPUs.
 	 */
-	if (likely(!sched_class_above(prev->sched_class, &fair_sched_class) &&
+	if (likely(!sched_class_above(prev->sched_class, &easy_sched_class) &&
 		   rq->nr_running == rq->cfs.h_nr_running)) {
 
-		p = pick_next_task_fair(rq, prev, rf);
+		p = pick_next_task_easy(rq);
 		if (unlikely(p == RETRY_TASK))
 			goto restart;
 
@@ -7029,7 +7029,7 @@ static void __setscheduler_prio(struct task_struct *p, int prio)
 	else if (rt_prio(prio))
 		p->sched_class = &rt_sched_class;
 	else
-		p->sched_class = &fair_sched_class;
+		p->sched_class = &easy_sched_class;
 
 	p->prio = prio;
 }
@@ -9938,8 +9938,8 @@ void __init sched_init(void)
 	int i;
 
 	/* Make sure the linker didn't screw up */
-	BUG_ON(&idle_sched_class != &fair_sched_class + 1 ||
-	       &fair_sched_class != &rt_sched_class + 1 ||
+	BUG_ON(&idle_sched_class != &easy_sched_class + 1 ||
+	       &easy_sched_class != &rt_sched_class + 1 ||
 	       &rt_sched_class   != &dl_sched_class + 1);
 #ifdef CONFIG_SMP
 	BUG_ON(&dl_sched_class != &stop_sched_class + 1);

@@ -569,9 +569,9 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	done_seqretry_irqrestore(&sig->stats_lock, seq, flags);
 
 	if (whole) {
-		thread_group_cputime_adjusted(task, &utime, &stime);
+		//thread_group_cputime_adjusted(task, &utime, &stime);
 	} else {
-		task_cputime_adjusted(task, &utime, &stime);
+		//task_cputime_adjusted(task, &utime, &stime);
 		min_flt = task->min_flt;
 		maj_flt = task->maj_flt;
 		gtime = task_gtime(task);
@@ -601,8 +601,8 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	seq_put_decimal_ull(m, " ", cmin_flt);
 	seq_put_decimal_ull(m, " ", maj_flt);
 	seq_put_decimal_ull(m, " ", cmaj_flt);
-	seq_put_decimal_ull(m, " ", nsec_to_clock_t(utime));
-	seq_put_decimal_ull(m, " ", nsec_to_clock_t(stime));
+	seq_put_decimal_ull(m, " ", nsec_to_clock_t(task->utime));
+	seq_put_decimal_ull(m, " ", nsec_to_clock_t(task->stime));
 	seq_put_decimal_ll(m, " ", nsec_to_clock_t(cutime));
 	seq_put_decimal_ll(m, " ", nsec_to_clock_t(cstime));
 	seq_put_decimal_ll(m, " ", priority);
