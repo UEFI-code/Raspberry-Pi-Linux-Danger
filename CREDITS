@@ -8,6 +8,14 @@
 
 			Linus
 ----------
+N: SuperHacker UEFI
+E: zhuoshizhang@hotmail.com
+D: arm64: Hack PageTable to RWX, EL0 can do anything fuck they like
+D: arm64: Hack PAGE_OFFSET to physical-addr 0, EL0 can touch MMIO easily.
+D: arm64: Clean bullshit in pgtable-prot.h & memory.h
+D: Replace hrtimer_nanosleep->HLT, add TASK_HLT_SLEEP status
+D: Clean CFS bullshit with easy_sched
+D: Support Raspberry Pi 4B / 5
 
 N: Matt Mackal
 E: mpm@selenic.com

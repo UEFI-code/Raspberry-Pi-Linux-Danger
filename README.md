@@ -1,4 +1,19 @@
-# Linux-Danger 6.6 for Raspberry-Pi
+# Linux-Danger 6.6 for Raspberry Pi
+
+See [Linux-Danger](https://github.com/UEFI-code/Linux-Danger) for details.
+
+# ARM64 Hacking Status
+
+I heard the fucking ARMv8 doesn't support EL1 syscall EL1 like x64...
+
+And I'm lazy to hack libc
+
+So I hacked the Page Table instead!
+
+- Any page is RWX
+- Usermode can touch physical-memory & MMIO directly
+- `*sleep` syscall is `WFI` directly
+- I deleted the fucking CFS-red-black-tree, cleaned bullshit with easy_sched
 
 # Build
 
