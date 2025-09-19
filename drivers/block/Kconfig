@@ -353,6 +353,7 @@ config VIRTIO_BLK
 	help
 	  This is the virtual block driver for virtio.  It can be used with
           QEMU based VMMs (like KVM or Xen).  Say Y or M.
+	default y
 
 config BLK_DEV_RBD
 	tristate "Rados block device (RBD)"
