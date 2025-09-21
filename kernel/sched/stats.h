@@ -96,16 +96,6 @@ struct sched_entity_stats {
 } __no_randomize_layout;
 #endif
 
-static inline struct sched_statistics *
-__schedstats_from_se(struct sched_entity *se)
-{
-#ifdef CONFIG_FAIR_GROUP_SCHED
-	if (!entity_is_task(se))
-		return &container_of(se, struct sched_entity_stats, se)->stats;
-#endif
-	return &task_of(se)->stats;
-}
-
 #ifdef CONFIG_PSI
 void psi_task_change(struct task_struct *task, int clear, int set);
 void psi_task_switch(struct task_struct *prev, struct task_struct *next,

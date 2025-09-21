@@ -105,12 +105,7 @@ static void yield_task_easy(struct rq *rq)
     easy_context->index++;
 }
 
-static void put_prev_task_easy(struct rq *rq, struct task_struct *p)
-{
-    //account_user_time(p, 233);
-    p->utime += 233;
-    //pr_alert("!!! %s update pid=%d utime=%lld !!!\n", __func__, p->pid, p->utime);
-}
+static void put_prev_task_easy(struct rq *rq, struct task_struct *p) { }
 static void set_next_task_easy(struct rq *rq, struct task_struct *p, bool first) { }
 static void task_tick_easy(struct rq *rq, struct task_struct *p, int queued) { }
 static bool yield_to_task_easy(struct rq *rq, struct task_struct *p) { return 0; }
@@ -188,10 +183,6 @@ DEFINE_SCHED_CLASS(easy) =
 
     .get_rr_interval     = get_rr_interval_easy,
     .update_curr         = update_curr_easy,
-
-#ifdef CONFIG_FAIR_GROUP_SCHED
-    .task_change_group   = task_change_group_easy,
-#endif
 
 #ifdef CONFIG_SCHED_CORE
     .task_is_throttled   = task_is_throttled_easy,

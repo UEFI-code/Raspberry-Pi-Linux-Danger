@@ -1298,8 +1298,6 @@ static void init_sched_groups_capacity(int cpu, struct sched_domain *sd)
 		for_each_cpu(cpu, sched_group_span(sg)) {
 			if (max_cpu < 0)
 				max_cpu = cpu;
-			else if (sched_asym_prefer(cpu, max_cpu))
-				max_cpu = cpu;
 		}
 		sg->asym_prefer_cpu = max_cpu;
 
@@ -1309,8 +1307,6 @@ next:
 
 	if (cpu != group_balance_cpu(sg))
 		return;
-
-	update_group_capacity(sd, cpu);
 }
 
 /*

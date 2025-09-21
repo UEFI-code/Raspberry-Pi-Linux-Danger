@@ -1055,10 +1055,6 @@ static void update_curr_rt(struct rq *rq)
 	if (curr->sched_class != &rt_sched_class)
 		return;
 
-	delta_exec = update_curr_common(rq);
-	if (unlikely(delta_exec <= 0))
-		return;
-
 	if (!rt_bandwidth_enabled())
 		return;
 

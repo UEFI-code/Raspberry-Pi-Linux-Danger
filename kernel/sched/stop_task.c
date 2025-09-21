@@ -70,7 +70,6 @@ static void yield_task_stop(struct rq *rq)
 
 static void put_prev_task_stop(struct rq *rq, struct task_struct *prev)
 {
-	update_curr_common(rq);
 }
 
 /*
